@@ -83,7 +83,7 @@ fi
 
 # Checking latest release from GitHub API
 echo -e "${yellow}Checking latest x-ui release...${plain}"
-latest_release=$(curl -Ls "https://api.github.com/repos/vaxilu/x-ui/releases/latest")
+latest_release=$(curl -Ls "https://api.github.com/repos/YOUR_USERNAME/x-ui/releases/latest")
 if [[ -z "$latest_release" ]]; then
     echo -e "${red}× Failed to fetch latest release info${plain}"
     exit 1
@@ -98,7 +98,7 @@ echo -e "${green}✓ Latest version: ${last_version}${plain}"
 
 # Test downloading the release file
 echo -e "${yellow}Testing download of release file...${plain}"
-url="https://github.com/vaxilu/x-ui/releases/download/${last_version}/x-ui-linux-${arch}.tar.gz"
+url="https://github.com/YOUR_USERNAME/x-ui/releases/download/${last_version}/x-ui-linux-${arch}.tar.gz"
 echo -e "${yellow}  URL: ${url}${plain}"
 
 # Only check if the file exists without downloading the whole thing
@@ -113,7 +113,7 @@ fi
 
 # Check x-ui.sh script
 echo -e "${yellow}Testing access to x-ui.sh script...${plain}"
-script_url="https://raw.githubusercontent.com/vaxilu/x-ui/master/x-ui.sh"
+script_url="https://raw.githubusercontent.com/YOUR_USERNAME/x-ui/master/x-ui.sh"
 http_code=$(curl -sI "$script_url" -o /dev/null -w "%{http_code}")
 if [[ "$http_code" == "200" ]]; then
     echo -e "${green}✓ x-ui.sh script is accessible${plain}"
@@ -125,7 +125,7 @@ fi
 
 # Check install.sh script
 echo -e "${yellow}Testing access to install.sh script...${plain}"
-install_url="https://raw.githubusercontent.com/vaxilu/x-ui/master/install.sh"
+install_url="https://raw.githubusercontent.com/YOUR_USERNAME/x-ui/master/install.sh"
 http_code=$(curl -sI "$install_url" -o /dev/null -w "%{http_code}")
 if [[ "$http_code" == "200" ]]; then
     echo -e "${green}✓ install.sh script is accessible${plain}"
@@ -163,5 +163,5 @@ echo -e "${green}✓ Required scripts are accessible${plain}"
 echo ""
 echo -e "${green}The installer appears to be working correctly!${plain}"
 echo -e "${yellow}To perform the actual installation, run:${plain}"
-echo -e "${yellow}bash <(curl -Ls https://raw.githubusercontent.com/vaxilu/x-ui/master/install.sh)${plain}"
+echo -e "${yellow}bash <(curl -Ls https://raw.githubusercontent.com/YOUR_USERNAME/x-ui/master/install.sh)${plain}"
 echo "" 
