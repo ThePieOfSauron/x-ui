@@ -160,20 +160,77 @@ config_after_install() {
 get_versions() {
     echo -e "${green}Fetching available x-ui versions...${plain}"
     
-    # Get all releases from GitHub API
-    all_releases=$(curl -s "https://api.github.com/repos/ThePieOfSauron/x-ui/releases" | jq -r '.[].tag_name' | grep -v 'beta\|alpha\|rc' | sed 's/^v//')
+    # Get all releases from GitHub API with proper pagination and error handling
+    all_releases=""
+    page=1
+    
+    while true; do
+        echo -e "${yellow}Fetching releases page ${page}...${plain}"
+        temp_releases=$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/ThePieOfSauron/x-ui/releases?per_page=100&page=${page}")
+        
+        # Check for API rate limiting or errors
+        if echo "$temp_releases" | grep -q "API rate limit exceeded"; then
+            echo -e "${red}GitHub API rate limit exceeded. Please try again later.${plain}"
+            exit 1
+        fi
+        
+        if echo "$temp_releases" | grep -q "Not Found"; then
+            echo -e "${red}Repository not found or no access. Please check the repository URL.${plain}"
+            exit 1
+        fi
+        
+        # Check if empty result (end of pages)
+        if [ "$temp_releases" = "[]" ] || [ -z "$temp_releases" ]; then
+            break
+        fi
+        
+        # Extract tags and append to all_releases
+        page_releases=$(echo "$temp_releases" | grep -o '"tag_name": *"[^"]*"' | sed 's/"tag_name": *"v\([^"]*\)"/\1/')
+        
+        if [ -z "$page_releases" ]; then
+            break
+        fi
+        
+        if [ -z "$all_releases" ]; then
+            all_releases="$page_releases"
+        else
+            all_releases="$all_releases"$'\n'"$page_releases"
+        fi
+        
+        # Move to next page
+        page=$((page+1))
+        
+        # Basic safety check to avoid infinite loops (in case API behavior changes)
+        if [ $page -gt 10 ]; then
+            break
+        fi
+    done
     
     if [[ -z "$all_releases" ]]; then
         echo -e "${red}Failed to fetch release list from GitHub. Please check your network or try again later.${plain}"
-        exit 1
-    fi
-    
-    # Sort versions in descending order and get the latest 3
-    latest_versions=($(echo "$all_releases" | sort -rV | head -n 3))
-    
-    if [[ ${#latest_versions[@]} -eq 0 ]]; then
-        echo -e "${red}No versions found. Please check the repository.${plain}"
-        exit 1
+        
+        # Fallback to directly checking for the latest version
+        echo -e "${yellow}Trying direct method to fetch the latest version...${plain}"
+        latest_version=$(curl -s "https://api.github.com/repos/ThePieOfSauron/x-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | sed 's/^v//')
+        
+        if [[ -n "$latest_version" ]]; then
+            echo -e "${green}Found latest version: ${latest_version}${plain}"
+            latest_versions=("$latest_version")
+        else
+            echo -e "${red}Could not determine the latest version. Please check manually.${plain}"
+            exit 1
+        fi
+    else
+        # Filter out pre-release versions and sort
+        all_releases=$(echo "$all_releases" | grep -v 'beta\|alpha\|rc' | sort -rV)
+        
+        # Get latest 3 versions
+        latest_versions=($(echo "$all_releases" | head -n 3))
+        
+        if [[ ${#latest_versions[@]} -eq 0 ]]; then
+            echo -e "${red}No versions found. Please check the repository.${plain}"
+            exit 1
+        fi
     fi
     
     echo -e "${yellow}Available versions:${plain}"
@@ -213,26 +270,75 @@ check_update_binaries() {
         return 1
     fi
 
-    # Get all releases from GitHub API
-    all_releases=$(curl -s "https://api.github.com/repos/ThePieOfSauron/x-ui/releases" | jq -r '.[].tag_name' | grep -v 'beta\|alpha\|rc' | sed 's/^v//')
+    # Get all releases from GitHub API - using improved method with pagination
+    all_releases=""
+    page=1
+    
+    while true; do
+        echo -e "${yellow}Fetching releases page ${page}...${plain}"
+        temp_releases=$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/ThePieOfSauron/x-ui/releases?per_page=100&page=${page}")
+        
+        # Check for API rate limiting or errors
+        if echo "$temp_releases" | grep -q "API rate limit exceeded"; then
+            echo -e "${red}GitHub API rate limit exceeded. Please try again later.${plain}"
+            return 1
+        fi
+        
+        if echo "$temp_releases" | grep -q "Not Found"; then
+            echo -e "${red}Repository not found or no access. Please check the repository URL.${plain}"
+            return 1
+        fi
+        
+        # Check if empty result (end of pages)
+        if [ "$temp_releases" = "[]" ] || [ -z "$temp_releases" ]; then
+            break
+        fi
+        
+        # Extract tags and append to all_releases
+        page_releases=$(echo "$temp_releases" | grep -o '"tag_name": *"[^"]*"' | sed 's/"tag_name": *"v\([^"]*\)"/\1/')
+        
+        if [ -z "$page_releases" ]; then
+            break
+        fi
+        
+        if [ -z "$all_releases" ]; then
+            all_releases="$page_releases"
+        else
+            all_releases="$all_releases"$'\n'"$page_releases"
+        fi
+        
+        # Move to next page
+        page=$((page+1))
+        
+        # Basic safety check to avoid infinite loops (in case API behavior changes)
+        if [ $page -gt 10 ]; then
+            break
+        fi
+    done
     
     if [[ -z "$all_releases" ]]; then
         echo -e "${red}Failed to fetch release list from GitHub. Please check your network or try again later.${plain}"
-        return 1
+        # Fallback to directly checking for latest version
+        echo -e "${yellow}Trying direct method to fetch the latest version...${plain}"
+        latest_version=$(curl -s "https://api.github.com/repos/ThePieOfSauron/x-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | sed 's/^v//')
+        
+        if [[ -z "$latest_version" ]]; then
+            echo -e "${red}Could not determine the latest version. Please check manually.${plain}"
+            return 1
+        fi
+    else
+        # Filter out pre-release versions and sort
+        all_releases=$(echo "$all_releases" | grep -v 'beta\|alpha\|rc' | sort -rV)
+        latest_version=$(echo "$all_releases" | head -n 1)
     fi
     
-    # Sort versions in descending order
-    latest_versions=($(echo "$all_releases" | sort -rV))
+    echo -e "${yellow}Latest available version: ${latest_version}${plain}"
     
-    if [[ ${#latest_versions[@]} -eq 0 ]]; then
-        echo -e "${red}No versions found. Please check the repository.${plain}"
-        return 1
-    fi
+    # Compare versions - using numeric comparison after removing dots
+    current_ver_num=$(echo "$current_version" | sed 's/\.//g')
+    latest_ver_num=$(echo "$latest_version" | sed 's/\.//g')
     
-    latest_version="${latest_versions[0]}"
-    
-    # Compare versions
-    if [[ $(echo "$latest_version" | sed 's/\.//g') -le $(echo "$current_version" | sed 's/\.//g') ]]; then
+    if [[ $latest_ver_num -le $current_ver_num ]]; then
         echo -e "${green}You are already running the latest version (${current_version}).${plain}"
         return 0
     fi
@@ -390,12 +496,82 @@ else
         if [ -n "$current_version" ]; then
             echo -e "${yellow}Found existing x-ui installation version: ${current_version}${plain}"
             
-            # Check for newer version
-            all_releases=$(curl -s "https://api.github.com/repos/ThePieOfSauron/x-ui/releases" | jq -r '.[].tag_name' | grep -v 'beta\|alpha\|rc' | sed 's/^v//')
-            if [[ -n "$all_releases" ]]; then
-                latest_version=$(echo "$all_releases" | sort -rV | head -n 1)
+            # Check for newer version using improved version detection
+            echo -e "${green}Checking for updates...${plain}"
+            
+            # Use the same improved GitHub API fetching as in check_update_binaries
+            all_releases=""
+            page=1
+            
+            while true; do
+                echo -e "${yellow}Fetching releases page ${page}...${plain}"
+                temp_releases=$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/ThePieOfSauron/x-ui/releases?per_page=100&page=${page}")
                 
-                if [[ $(echo "$latest_version" | sed 's/\.//g') -gt $(echo "$current_version" | sed 's/\.//g') ]]; then
+                # Check for API rate limiting or errors
+                if echo "$temp_releases" | grep -q "API rate limit exceeded"; then
+                    echo -e "${red}GitHub API rate limit exceeded. Please try again later.${plain}"
+                    echo -e "${yellow}Proceeding with installation using current version.${plain}"
+                    break
+                fi
+                
+                if echo "$temp_releases" | grep -q "Not Found"; then
+                    echo -e "${red}Repository not found or no access. Please check the repository URL.${plain}"
+                    echo -e "${yellow}Proceeding with installation using current version.${plain}"
+                    break
+                fi
+                
+                # Check if empty result (end of pages)
+                if [ "$temp_releases" = "[]" ] || [ -z "$temp_releases" ]; then
+                    break
+                fi
+                
+                # Extract tags and append to all_releases
+                page_releases=$(echo "$temp_releases" | grep -o '"tag_name": *"[^"]*"' | sed 's/"tag_name": *"v\([^"]*\)"/\1/')
+                
+                if [ -z "$page_releases" ]; then
+                    break
+                fi
+                
+                if [ -z "$all_releases" ]; then
+                    all_releases="$page_releases"
+                else
+                    all_releases="$all_releases"$'\n'"$page_releases"
+                fi
+                
+                # Move to next page
+                page=$((page+1))
+                
+                # Basic safety check to avoid infinite loops (in case API behavior changes)
+                if [ $page -gt 10 ]; then
+                    break
+                fi
+            done
+            
+            # Determine the latest version
+            latest_version=""
+            
+            if [[ -z "$all_releases" ]]; then
+                # Try fallback method for latest version
+                latest_version=$(curl -s "https://api.github.com/repos/ThePieOfSauron/x-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | sed 's/^v//')
+                if [[ -z "$latest_version" ]]; then
+                    echo -e "${red}Could not determine the latest version. Using current version for comparison.${plain}"
+                    latest_version="$current_version" # Fallback to current version
+                fi
+            else
+                # Filter out pre-release versions and sort
+                all_releases=$(echo "$all_releases" | grep -v 'beta\|alpha\|rc' | sort -rV)
+                latest_version=$(echo "$all_releases" | head -n 1)
+            fi
+            
+            # Compare versions using numeric comparison
+            if [ -n "$latest_version" ]; then
+                echo -e "${yellow}Latest available version: ${latest_version}${plain}"
+                
+                # Convert versions to numeric for comparison
+                current_ver_num=$(echo "$current_version" | sed 's/\.//g')
+                latest_ver_num=$(echo "$latest_version" | sed 's/\.//g')
+                
+                if [[ $latest_ver_num -gt $current_ver_num ]]; then
                     echo -e "${green}New version available: ${latest_version}${plain}"
                     echo -e "${yellow}You can update just the binaries without changing your configuration.${plain}"
                     read -p "Do you want to update to the latest version? [y/n]: " update_confirm
