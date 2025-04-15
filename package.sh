@@ -13,6 +13,10 @@ export GOPROXY=https://goproxy.io,direct
 CACHE_DIR="./xray_cache"
 mkdir -p "$CACHE_DIR"
 
+# Create version-specific release directory
+RELEASE_DIR="./releases/v${VERSION}"
+mkdir -p "$RELEASE_DIR"
+
 # Function to build and package for a specific platform
 build_and_package() {
     local OS=$1
@@ -135,15 +139,17 @@ build_and_package() {
         tar -czf "${PKG_NAME}.tar.gz" "x-ui"
     fi
     
-    # Move to releases directory
-    mkdir -p releases
-    mv "${PKG_NAME}.${ARCHIVE_EXT}" "releases/"
+    # Move to version-specific release directory
+    mv "${PKG_NAME}.${ARCHIVE_EXT}" "${RELEASE_DIR}/"
+    
+    # Also create a copy in the main releases directory (for backward compatibility)
+    cp "${RELEASE_DIR}/${PKG_NAME}.${ARCHIVE_EXT}" "releases/"
     
     # Cleanup
     rm -rf "x-ui"
     rm -f xui-release*
     
-    echo "Package for $OS/$ARCH completed: releases/${PKG_NAME}.${ARCHIVE_EXT}"
+    echo "Package for $OS/$ARCH completed: ${RELEASE_DIR}/${PKG_NAME}.${ARCHIVE_EXT}"
 }
 
 # Build for Linux (amd64)
@@ -155,4 +161,18 @@ build_and_package "linux" "arm64" "arm64-v8a"
 # Build for Windows (amd64)
 build_and_package "windows" "amd64" "64"
 
-echo "All packages created successfully in the 'releases' directory" 
+# Create a VERSION file in the release directory
+echo "$VERSION" > "${RELEASE_DIR}/VERSION"
+
+# Create a checksum file for all files in the release directory
+echo "Creating checksums..."
+cd "${RELEASE_DIR}"
+if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum * > SHA256SUMS
+elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 * > SHA256SUMS
+fi
+cd ../..
+
+echo "All packages created successfully in the 'releases' directory"
+echo "Version-specific packages are available in: ${RELEASE_DIR}" 

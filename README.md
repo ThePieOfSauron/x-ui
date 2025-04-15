@@ -142,3 +142,42 @@ Various basic questions lead to high blood pressure.
 ## Stargazers over time
 
 [![Stargazers over time](https://starchart.cc/vaxilu/x-ui.svg)](https://starchart.cc/vaxilu/x-ui)
+
+## Release Management
+
+### Automated Releases with GitHub CLI
+
+We've added scripts to simplify the release process using GitHub CLI:
+
+#### Prerequisites
+
+- Install GitHub CLI: https://cli.github.com/
+- Authenticate with `gh auth login`
+
+#### For Windows Users
+
+```powershell
+# Make sure you've built the packages first
+./package.sh  # or use WSL
+
+# Then create and upload the release
+./github_release.ps1
+```
+
+#### For Linux/macOS Users
+
+```bash
+# Make sure you've built the packages first
+./package.sh
+
+# Then create and upload the release
+chmod +x github_release.sh
+./github_release.sh
+```
+
+#### GitHub Actions
+
+You can also trigger a release through GitHub Actions by:
+
+1. Creating a tag with the version format `v0.3.3` and pushing it
+2. Manually triggering the workflow from the Actions tab

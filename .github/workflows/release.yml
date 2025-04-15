@@ -1,34 +1,39 @@
-name: Release X-ui
+name: Release X-UI
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (without v prefix)'
+        required: true
+        default: '0.3.3'
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-    steps:
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: X-UI ${{ github.ref }}
-          draft: true
-          prerelease: false
-          
   build-and-release:
-    needs: release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         
+      - name: Get version
+        id: get_version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=${{ github.event.inputs.version }}
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Using version: ${VERSION}"
+      
+      - name: Update version in config file if manual workflow
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "${{ steps.get_version.outputs.version }}" > config/version
+          echo "Updated version to ${{ steps.get_version.outputs.version }}"
+      
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
@@ -49,33 +54,31 @@ jobs:
         run: |
           chmod +x package.sh
           ./package.sh
-          
-      - name: Upload Linux AMD64 Release
-        uses: actions/upload-release-asset@v1
+      
+      - name: Setup GitHub CLI
+        uses: cli/cli-action@v2
+        
+      - name: Create GitHub release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: ./releases/x-ui-linux-amd64-*.tar.gz
-          asset_name: x-ui-linux-amd64.tar.gz
-          asset_content_type: application/gzip
+          VERSION: ${{ steps.get_version.outputs.version }}
+        run: |
+          gh release create v${VERSION} \
+            --title "X-UI v${VERSION}" \
+            --notes "Release version ${VERSION} with improvements and bug fixes" \
+            --draft
           
-      - name: Upload Linux ARM64 Release
-        uses: actions/upload-release-asset@v1
+      - name: Upload release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: ./releases/x-ui-linux-arm64-*.tar.gz
-          asset_name: x-ui-linux-arm64.tar.gz
-          asset_content_type: application/gzip
+          VERSION: ${{ steps.get_version.outputs.version }}
+        run: |
+          VERSION_DIR="releases/v${VERSION}"
           
-      - name: Upload Windows AMD64 Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: ./releases/x-ui-windows-amd64-*.zip
-          asset_name: x-ui-windows-amd64.zip
-          asset_content_type: application/zip
+          # Upload SHA256SUMS
+          gh release upload v${VERSION} "${VERSION_DIR}/SHA256SUMS"
+          
+          # Upload release packages
+          gh release upload v${VERSION} "${VERSION_DIR}/x-ui-linux-amd64-${VERSION}.tar.gz"
+          gh release upload v${VERSION} "${VERSION_DIR}/x-ui-linux-arm64-${VERSION}.tar.gz"
+          gh release upload v${VERSION} "${VERSION_DIR}/x-ui-windows-amd64-${VERSION}.zip"
