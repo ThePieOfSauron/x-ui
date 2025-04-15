@@ -4,7 +4,7 @@
 
 # Configuration - REPLACE THESE VALUES
 REPO="YOUR_USERNAME/x-ui"
-VERSION="0.3.3"
+VERSION="0.3.5"
 
 # Get GitHub token
 echo "Enter your GitHub Personal Access Token:"

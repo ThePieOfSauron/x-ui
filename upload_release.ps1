@@ -2,7 +2,7 @@
 
 # Configuration
 $repo = "YOUR_USERNAME/x-ui"  # Replace with your actual repository
-$version = "0.3.3"
+$version = "0.3.5"
 $token = Read-Host -Prompt "Enter your GitHub personal access token"
 
 # Create release

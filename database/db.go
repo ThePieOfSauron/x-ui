@@ -1,14 +1,15 @@
 package database
 
 import (
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 	"io/fs"
 	"os"
 	"path"
 	"x-ui/config"
 	"x-ui/database/model"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var db *gorm.DB
@@ -59,10 +60,17 @@ func InitDB(dbPath string) error {
 	c := &gorm.Config{
 		Logger: gormLogger,
 	}
-	db, err = gorm.Open(sqlite.Open(dbPath), c)
+
+	// Check if we can open SQLite with CGO
+	sqliteDB, err := gorm.Open(sqlite.Open(dbPath), c)
 	if err != nil {
+		// If there's an error related to CGO, provide a clear message
+		if err.Error() == "Binary was compiled with 'CGO_ENABLED=0', go-sqlite3 requires cgo to work." {
+			return err
+		}
 		return err
 	}
+	db = sqliteDB
 
 	err = initUser()
 	if err != nil {

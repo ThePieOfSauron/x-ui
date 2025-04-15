@@ -10,7 +10,8 @@ if (-not (Test-Path -Path ".\bin")) {
 
 # Build for Windows
 Write-Output "Building x-ui for Windows..."
-& 'C:\Program Files\Go\bin\go.exe' build -o .\bin\x-ui.exe
+$env:CGO_ENABLED="1"  # Required for SQLite
+& 'C:\Program Files\Go\bin\go.exe' build -o .\bin\x-ui.exe -v main.go
 
 # Check if build was successful
 if ($LASTEXITCODE -eq 0) {

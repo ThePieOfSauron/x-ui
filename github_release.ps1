@@ -4,7 +4,7 @@
 # This script creates a release and uploads assets using GitHub CLI
 
 # Configuration
-$version = "0.3.3"  # Read from config/version
+$version = "0.3.5"  # Read from config/version
 $tagName = "v$version"
 $releaseName = "X-UI v$version"
 $notes = "Release version $version with improvements and bug fixes"

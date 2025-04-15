@@ -19,6 +19,11 @@ import (
 	"github.com/op/go-logging"
 )
 
+const (
+	serviceName = "x-ui"
+	version     = "0.3.5"
+)
+
 func runWebServer() {
 	log.Printf("%v %v", config.GetName(), config.GetVersion())
 

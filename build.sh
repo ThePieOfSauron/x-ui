@@ -29,7 +29,8 @@ esac
 
 # Build for the current platform
 echo "Building x-ui for $OS/$GOARCH..."
-go build -o ./bin/x-ui
+export CGO_ENABLED=1
+go build -o ./bin/x-ui -v main.go
 
 # Check if build was successful
 if [ $? -eq 0 ]; then

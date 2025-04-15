@@ -3,7 +3,7 @@
 # Script to build and package x-ui for different platforms for GitHub releases
 set -e
 
-VERSION=$(grep -Po "(?<=version )\S+" main.go 2>/dev/null || echo "0.3.3")
+VERSION=$(grep -Po "version\s+=\s+\"\K[^\"]*" main.go 2>/dev/null || cat config/version 2>/dev/null || echo "0.3.4")
 echo "Packaging x-ui version $VERSION"
 
 # Set Go proxy to bypass potential network restrictions

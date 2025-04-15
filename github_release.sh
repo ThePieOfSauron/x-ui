@@ -6,10 +6,10 @@
 set -e
 
 # Configuration
-VERSION=$(cat config/version 2>/dev/null || echo "0.3.3")
+VERSION="0.3.5"
 TAG_NAME="v${VERSION}"
 RELEASE_NAME="X-UI v${VERSION}"
-NOTES="Release version ${VERSION} with improvements and bug fixes"
+NOTES="Release version ${VERSION} with bug fixes for web page loading issues and SQLite database compatibility"
 
 # Ensure GitHub CLI is installed and authenticated
 if ! command -v gh &> /dev/null; then

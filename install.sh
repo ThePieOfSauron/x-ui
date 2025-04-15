@@ -200,6 +200,104 @@ choose_version() {
     echo -e "${green}Selected version: ${selected_version}${plain}"
 }
 
+# Check for updates and update binaries only if a newer version is available
+check_update_binaries() {
+    echo -e "${green}Checking for updates...${plain}"
+    
+    # Get the current installed version
+    if [ -f /usr/local/x-ui/x-ui ]; then
+        current_version=$(/usr/local/x-ui/x-ui -version 2>/dev/null | awk '{print $2}' | sed 's/^v//')
+        echo -e "${yellow}Current installed version: ${current_version}${plain}"
+    else
+        echo -e "${red}x-ui is not installed. Please run the installation first.${plain}"
+        return 1
+    fi
+
+    # Get all releases from GitHub API
+    all_releases=$(curl -s "https://api.github.com/repos/ThePieOfSauron/x-ui/releases" | jq -r '.[].tag_name' | grep -v 'beta\|alpha\|rc' | sed 's/^v//')
+    
+    if [[ -z "$all_releases" ]]; then
+        echo -e "${red}Failed to fetch release list from GitHub. Please check your network or try again later.${plain}"
+        return 1
+    fi
+    
+    # Sort versions in descending order
+    latest_versions=($(echo "$all_releases" | sort -rV))
+    
+    if [[ ${#latest_versions[@]} -eq 0 ]]; then
+        echo -e "${red}No versions found. Please check the repository.${plain}"
+        return 1
+    fi
+    
+    latest_version="${latest_versions[0]}"
+    
+    # Compare versions
+    if [[ $(echo "$latest_version" | sed 's/\.//g') -le $(echo "$current_version" | sed 's/\.//g') ]]; then
+        echo -e "${green}You are already running the latest version (${current_version}).${plain}"
+        return 0
+    fi
+    
+    echo -e "${yellow}New version available: ${latest_version}${plain}"
+    read -p "Do you want to update the binaries to version ${latest_version}? [y/n]: " update_confirm
+    
+    if [[ x"${update_confirm}" != x"y" && x"${update_confirm}" != x"Y" ]]; then
+        echo -e "${red}Update canceled.${plain}"
+        return 0
+    fi
+    
+    # Performing the update
+    echo -e "${green}Updating binaries to version ${latest_version}...${plain}"
+    
+    # Save current working directory
+    local orig_dir=$(pwd)
+    cd /usr/local/
+    
+    # Stop x-ui service temporarily
+    systemctl stop x-ui
+    
+    # Download and extract the new version
+    version_tag="v${latest_version}"
+    
+    echo -e "Downloading x-ui ${version_tag} binaries..."
+    wget -N --no-check-certificate -O /usr/local/x-ui-linux-${arch}.tar.gz https://github.com/ThePieOfSauron/x-ui/releases/download/${version_tag}/x-ui-linux-${arch}-${latest_version}.tar.gz
+    
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Failed to download x-ui ${version_tag}. Please ensure this version exists.${plain}"
+        systemctl start x-ui
+        cd "$orig_dir"
+        return 1
+    fi
+    
+    # Create a temporary directory for extraction
+    mkdir -p /usr/local/x-ui-tmp
+    tar zxvf x-ui-linux-${arch}.tar.gz -C /usr/local/x-ui-tmp
+    
+    # Back up current configuration files
+    echo -e "${yellow}Backing up configuration...${plain}"
+    cp -f /usr/local/x-ui/db/x-ui.db /usr/local/x-ui-tmp/db/ 2>/dev/null || mkdir -p /usr/local/x-ui-tmp/db/
+    
+    # Copy only the binary files and preserve configuration
+    echo -e "${yellow}Updating binaries...${plain}"
+    cp -f /usr/local/x-ui-tmp/x-ui /usr/local/x-ui/
+    cp -f /usr/local/x-ui-tmp/bin/xray-linux-${arch} /usr/local/x-ui/bin/
+    
+    # Set executable permissions
+    chmod +x /usr/local/x-ui/x-ui
+    chmod +x /usr/local/x-ui/bin/xray-linux-${arch}
+    
+    # Clean up temporary files
+    rm -rf /usr/local/x-ui-tmp
+    rm -f /usr/local/x-ui-linux-${arch}.tar.gz
+    
+    # Start the service again
+    systemctl start x-ui
+    
+    echo -e "${green}Update complete! x-ui binaries have been updated to version ${latest_version} while preserving your configuration.${plain}"
+    cd "$orig_dir"
+    
+    return 0
+}
+
 install_x-ui() {
     systemctl stop x-ui 2>/dev/null
     cd /usr/local/
@@ -257,9 +355,93 @@ install_x-ui() {
     echo -e "x-ui update       - Update x-ui panel"
     echo -e "x-ui install      - Install x-ui panel"
     echo -e "x-ui uninstall    - Uninstall x-ui panel"
+    echo -e "x-ui check-update - Check for updates and update binaries only"
     echo -e "----------------------------------------------"
 }
 
-echo -e "${green}Starting installation${plain}"
-install_base
-install_x-ui $1
+# Parse command line arguments
+if [ $# -gt 0 ]; then
+    case $1 in
+        "install")
+            install_base
+            if [ $# -gt 1 ]; then
+                install_x-ui $2
+            else
+                install_x-ui
+            fi
+            ;;
+        "check-update")
+            install_base
+            check_update_binaries
+            ;;
+        *)
+            echo -e "${red}Unknown command: $1${plain}"
+            echo "Usage: $0 [install/check-update] [version]"
+            exit 1
+            ;;
+    esac
+else
+    # Default behavior - check for existing installation and suggest update if available
+    echo -e "${green}Checking for existing installation...${plain}"
+    install_base
+    
+    if [ -f /usr/local/x-ui/x-ui ]; then
+        current_version=$(/usr/local/x-ui/x-ui -version 2>/dev/null | awk '{print $2}' | sed 's/^v//')
+        if [ -n "$current_version" ]; then
+            echo -e "${yellow}Found existing x-ui installation version: ${current_version}${plain}"
+            
+            # Check for newer version
+            all_releases=$(curl -s "https://api.github.com/repos/ThePieOfSauron/x-ui/releases" | jq -r '.[].tag_name' | grep -v 'beta\|alpha\|rc' | sed 's/^v//')
+            if [[ -n "$all_releases" ]]; then
+                latest_version=$(echo "$all_releases" | sort -rV | head -n 1)
+                
+                if [[ $(echo "$latest_version" | sed 's/\.//g') -gt $(echo "$current_version" | sed 's/\.//g') ]]; then
+                    echo -e "${green}New version available: ${latest_version}${plain}"
+                    echo -e "${yellow}You can update just the binaries without changing your configuration.${plain}"
+                    read -p "Do you want to update to the latest version? [y/n]: " update_confirm
+                    
+                    if [[ x"${update_confirm}" == x"y" || x"${update_confirm}" == x"Y" ]]; then
+                        check_update_binaries
+                        exit 0
+                    else
+                        echo -e "${yellow}Update skipped.${plain}"
+                        read -p "Do you want to perform a fresh installation instead? [y/n]: " fresh_install
+                        if [[ x"${fresh_install}" == x"y" || x"${fresh_install}" == x"Y" ]]; then
+                            echo -e "${green}Starting fresh installation...${plain}"
+                            install_x-ui
+                        else
+                            echo -e "${yellow}Installation canceled.${plain}"
+                            exit 0
+                        fi
+                    fi
+                else
+                    echo -e "${green}You are already running the latest version.${plain}"
+                    read -p "Do you want to perform a fresh installation anyway? [y/n]: " fresh_install
+                    if [[ x"${fresh_install}" == x"y" || x"${fresh_install}" == x"Y" ]]; then
+                        echo -e "${green}Starting fresh installation...${plain}"
+                        install_x-ui
+                    else
+                        echo -e "${yellow}Installation canceled.${plain}"
+                        exit 0
+                    fi
+                fi
+            else
+                echo -e "${red}Failed to check for updates. Proceeding with regular installation.${plain}"
+                install_x-ui
+            fi
+        else
+            echo -e "${yellow}Found existing x-ui installation but couldn't determine version.${plain}"
+            read -p "Do you want to perform a fresh installation? [y/n]: " fresh_install
+            if [[ x"${fresh_install}" == x"y" || x"${fresh_install}" == x"Y" ]]; then
+                echo -e "${green}Starting fresh installation...${plain}"
+                install_x-ui
+            else
+                echo -e "${yellow}Installation canceled.${plain}"
+                exit 0
+            fi
+        fi
+    else
+        echo -e "${green}No existing installation found. Starting fresh installation...${plain}"
+        install_x-ui
+    fi
+fi

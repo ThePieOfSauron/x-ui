@@ -48,6 +48,7 @@ type wrapAssetsFS struct {
 func (f *wrapAssetsFS) Open(name string) (fs.File, error) {
 	file, err := f.FS.Open("assets/" + name)
 	if err != nil {
+		logger.Error("Failed to open asset:", name, "Error:", err)
 		return nil, err
 	}
 	return &wrapAssetsFile{
@@ -126,13 +127,17 @@ func (s *Server) getHtmlTemplate(funcMap template.FuncMap) (*template.Template, 
 	t := template.New("").Funcs(funcMap)
 	err := fs.WalkDir(htmlFS, "html", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			logger.Error("Error walking HTML directory:", err)
 			return err
 		}
 
 		if d.IsDir() {
-			newT, err := t.ParseFS(htmlFS, path+"/*.html")
+			pattern := path + "/*.html"
+			logger.Info("Loading HTML templates from pattern:", pattern)
+			newT, err := t.ParseFS(htmlFS, pattern)
 			if err != nil {
-				// ignore
+				// Don't fail completely, just log the error
+				logger.Warning("Error parsing template:", pattern, err)
 				return nil
 			}
 			t = newT
@@ -158,13 +163,16 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 
 	secret, err := s.settingService.GetSecret()
 	if err != nil {
+		logger.Error("Failed to get secret:", err)
 		return nil, err
 	}
 
 	basePath, err := s.settingService.GetBasePath()
 	if err != nil {
+		logger.Error("Failed to get base path:", err)
 		return nil, err
 	}
+	logger.Info("Using base path:", basePath)
 	assetsBasePath := basePath + "assets/"
 
 	store := cookie.NewStore(secret)
@@ -329,6 +337,7 @@ func (s *Server) Start() (err error) {
 	defer func() {
 		if err != nil {
 			s.Stop()
+			logger.Error("Server failed to start:", err)
 		}
 	}()
 
@@ -369,6 +378,7 @@ func (s *Server) Start() (err error) {
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
 			listener.Close()
+			logger.Error("Failed to load TLS certificates:", err)
 			return err
 		}
 		c := &tls.Config{
