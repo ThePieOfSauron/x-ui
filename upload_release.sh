@@ -11,8 +11,8 @@ echo "Enter your GitHub Personal Access Token:"
 read -s TOKEN
 
 # Create release
-echo "Creating release ${VERSION}..."
-JSON="{\"tag_name\":\"${VERSION}\",\"name\":\"x-ui v${VERSION}\",\"body\":\"Release version ${VERSION} with improvements and bug fixes\",\"draft\":true,\"prerelease\":false}"
+echo "Creating release v${VERSION}..."
+JSON="{\"tag_name\":\"v${VERSION}\",\"name\":\"x-ui v${VERSION}\",\"body\":\"Release version ${VERSION} with improvements and bug fixes\",\"draft\":true,\"prerelease\":false}"
 
 RESPONSE=$(curl -s -H "Authorization: token ${TOKEN}" \
     -H "Content-Type: application/json" \
@@ -30,15 +30,47 @@ fi
 
 echo "Release created! Starting file uploads..."
 
-# Upload assets
-FILES=(
-    "releases/x-ui-linux-amd64-${VERSION}.tar.gz"
-    "releases/x-ui-linux-arm64-${VERSION}.tar.gz"
-    "releases/x-ui-windows-amd64-${VERSION}.zip"
+# Define version-specific release directory
+VERSION_DIR="releases/v${VERSION}"
+
+# Check if the version directory exists
+if [ ! -d "${VERSION_DIR}" ]; then
+    echo "Version-specific directory not found: ${VERSION_DIR}"
+    echo "Will try to use files from the main releases directory instead."
+    VERSION_DIR="releases"
+fi
+
+# Upload SHA256SUMS if it exists
+SHA256SUMS_FILE="${VERSION_DIR}/SHA256SUMS"
+if [ -f "${SHA256SUMS_FILE}" ]; then
+    echo "Uploading SHA256SUMS..."
+    curl -s -H "Authorization: token ${TOKEN}" \
+        -H "Content-Type: text/plain" \
+        --data-binary @"${SHA256SUMS_FILE}" \
+        "${UPLOAD_URL}?name=SHA256SUMS"
+    echo "Uploaded SHA256SUMS successfully!"
+fi
+
+# Upload assets - file patterns to look for
+FILE_PATTERNS=(
+    "x-ui-linux-amd64-${VERSION}.tar.gz"
+    "x-ui-linux-arm64-${VERSION}.tar.gz"
+    "x-ui-windows-amd64-${VERSION}.zip"
 )
 
-for FILE in "${FILES[@]}"; do
-    FILENAME=$(basename "${FILE}")
+for PATTERN in "${FILE_PATTERNS[@]}"; do
+    FILE_PATH="${VERSION_DIR}/${PATTERN}"
+    
+    # If file doesn't exist in version dir, try main releases dir
+    if [ ! -f "${FILE_PATH}" ]; then
+        FILE_PATH="releases/${PATTERN}"
+        if [ ! -f "${FILE_PATH}" ]; then
+            echo "File not found: ${PATTERN}"
+            continue
+        fi
+    fi
+    
+    FILENAME=$(basename "${FILE_PATH}")
     echo "Uploading ${FILENAME}..."
     
     CONTENT_TYPE="application/gzip"
@@ -48,7 +80,7 @@ for FILE in "${FILES[@]}"; do
     
     curl -s -H "Authorization: token ${TOKEN}" \
         -H "Content-Type: ${CONTENT_TYPE}" \
-        --data-binary @"${FILE}" \
+        --data-binary @"${FILE_PATH}" \
         "${UPLOAD_URL}?name=${FILENAME}"
     
     echo "Uploaded ${FILENAME} successfully!"
