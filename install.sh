@@ -75,9 +75,9 @@ fi
 
 install_base() {
     if [[ x"${release}" == x"centos" ]]; then
-        yum install wget curl tar -y
+        yum install wget curl tar jq -y
     else
-        apt install wget curl tar -y
+        apt install wget curl tar jq -y
     fi
 }
 
@@ -156,31 +156,72 @@ config_after_install() {
     fi
 }
 
+# Get available versions from GitHub
+get_versions() {
+    echo -e "${green}Fetching available x-ui versions...${plain}"
+    
+    # Get all releases from GitHub API
+    all_releases=$(curl -s "https://api.github.com/repos/ThePieOfSauron/x-ui/releases" | jq -r '.[].tag_name' | grep -v 'beta\|alpha\|rc' | sed 's/^v//')
+    
+    if [[ -z "$all_releases" ]]; then
+        echo -e "${red}Failed to fetch release list from GitHub. Please check your network or try again later.${plain}"
+        exit 1
+    fi
+    
+    # Sort versions in descending order and get the latest 3
+    latest_versions=($(echo "$all_releases" | sort -rV | head -n 3))
+    
+    if [[ ${#latest_versions[@]} -eq 0 ]]; then
+        echo -e "${red}No versions found. Please check the repository.${plain}"
+        exit 1
+    fi
+    
+    echo -e "${yellow}Available versions:${plain}"
+    for i in "${!latest_versions[@]}"; do
+        echo -e "$((i+1)). ${green}${latest_versions[$i]}${plain} ($([ $i -eq 0 ] && echo 'latest' || echo 'older'))"
+    done
+}
+
+# Choose version to install
+choose_version() {
+    echo ""
+    read -p "Select a version to install (1-${#latest_versions[@]}, default 1): " version_number
+    
+    if [[ -z "$version_number" ]]; then
+        version_number=1
+    fi
+    
+    if ! [[ "$version_number" =~ ^[0-9]+$ ]] || [[ "$version_number" -lt 1 ]] || [[ "$version_number" -gt ${#latest_versions[@]} ]]; then
+        echo -e "${red}Invalid input. Using the latest version (1).${plain}"
+        version_number=1
+    fi
+    
+    selected_version="${latest_versions[$((version_number-1))]}"
+    echo -e "${green}Selected version: ${selected_version}${plain}"
+}
+
 install_x-ui() {
-    systemctl stop x-ui
+    systemctl stop x-ui 2>/dev/null
     cd /usr/local/
 
     if [ $# == 0 ]; then
-        last_version=$(curl -Ls "https://api.github.com/repos/YOUR_USERNAME/x-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-        if [[ ! -n "$last_version" ]]; then
-            echo -e "${red}Failed to detect x-ui version, possibly exceeding Github API limits. Please try again later or manually specify the version.${plain}"
-            exit 1
-        fi
-        echo -e "Detected latest x-ui version: ${last_version}, starting installation"
-        wget -N --no-check-certificate -O /usr/local/x-ui-linux-${arch}.tar.gz https://github.com/YOUR_USERNAME/x-ui/releases/download/${last_version}/x-ui-linux-${arch}.tar.gz
-        if [[ $? -ne 0 ]]; then
-            echo -e "${red}Failed to download x-ui. Please ensure your server can download from Github.${plain}"
-            exit 1
-        fi
+        # Get available versions and let user choose
+        get_versions
+        choose_version
+        version_tag="v${selected_version}"
     else
-        last_version=$1
-        url="https://github.com/YOUR_USERNAME/x-ui/releases/download/${last_version}/x-ui-linux-${arch}.tar.gz"
-        echo -e "Starting installation of x-ui v$1"
-        wget -N --no-check-certificate -O /usr/local/x-ui-linux-${arch}.tar.gz ${url}
-        if [[ $? -ne 0 ]]; then
-            echo -e "${red}Failed to download x-ui v$1. Please ensure this version exists.${plain}"
-            exit 1
-        fi
+        # Manual version specified from command line
+        version_tag="v$1"
+        selected_version="$1"
+        echo -e "Using specified version: ${version_tag}"
+    fi
+
+    echo -e "Starting installation of x-ui ${version_tag}"
+    wget -N --no-check-certificate -O /usr/local/x-ui-linux-${arch}.tar.gz https://github.com/ThePieOfSauron/x-ui/releases/download/${version_tag}/x-ui-linux-${arch}-${selected_version}.tar.gz
+    
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Failed to download x-ui ${version_tag}. Please ensure this version exists.${plain}"
+        exit 1
     fi
 
     if [[ -e /usr/local/x-ui/ ]]; then
@@ -192,7 +233,7 @@ install_x-ui() {
     cd x-ui
     chmod +x x-ui bin/xray-linux-${arch}
     cp -f x-ui.service /etc/systemd/system/
-    wget --no-check-certificate -O /usr/bin/x-ui https://raw.githubusercontent.com/YOUR_USERNAME/x-ui/master/x-ui.sh
+    wget --no-check-certificate -O /usr/bin/x-ui https://raw.githubusercontent.com/ThePieOfSauron/x-ui/main/x-ui.sh
     chmod +x /usr/local/x-ui/x-ui.sh
     chmod +x /usr/bin/x-ui
     config_after_install
@@ -200,7 +241,7 @@ install_x-ui() {
     systemctl daemon-reload
     systemctl enable x-ui
     systemctl start x-ui
-    echo -e "${green}x-ui v${last_version}${plain} installation complete. The panel has been started."
+    echo -e "${green}x-ui ${version_tag}${plain} installation complete. The panel has been started."
     echo -e ""
     echo -e "x-ui management script usage: "
     echo -e "----------------------------------------------"

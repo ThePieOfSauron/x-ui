@@ -274,18 +274,90 @@ install() {
 }
 
 update() {
-    confirm "$INSTALL_FORCE_CONFIRM" "n"
-    if [[ $? != 0 ]]; then
-        LOGE "$INSTALL_CANCEL"
-        if [[ $# == 0 ]]; then
-            before_show_menu
-        fi
-        return 0
+    if [[ $# == 0 ]]; then
+        echo && echo -e "  ${green}x-ui update${plain}" && echo
+        echo -e "  ${green}0.${plain} Back to Main Menu"
+        echo -e "  ${green}1.${plain} Check for latest versions"
+        echo -e "  ${green}2.${plain} Update to a specific version"
+        echo && read -p "Please enter a number [0-2]: " num
+
+        case "${num}" in
+            0) show_menu ;;
+            1) check_latest_version ;;
+            2) select_version_update ;;
+            *) echo -e "${red}Please enter a valid number [0-2]${plain}" ;;
+        esac
+    else
+        install_x-ui $1
     fi
-    bash <(curl -Ls https://raw.githubusercontent.com/vaxilu/x-ui/master/install.sh)
+}
+
+check_latest_version() {
+    echo -e "Getting available versions from GitHub..."
+    latest_version=$(curl -Ls "https://api.github.com/repos/ThePieOfSauron/x-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    if [[ ! -n "$latest_version" ]]; then
+        echo -e "${red}Failed to retrieve latest version, please check your network or try again later${plain}"
+        return
+    fi
+    
+    echo -e "Current version: ${green}${version}${plain}"
+    echo -e "Latest version: ${green}${latest_version}${plain}"
+    
+    if [[ "${latest_version}" == "v${version}" ]]; then
+        echo -e "You are already running the latest version. No update needed."
+        before_show_menu
+        return
+    fi
+    
+    confirm "Update to ${latest_version}? [y/n]" "n"
     if [[ $? == 0 ]]; then
-        LOGI "$UPDATE_COMPLETE"
-        exit 0
+        install_x-ui "${latest_version#v}"
+    fi
+}
+
+select_version_update() {
+    echo -e "Getting available versions from GitHub..."
+    all_releases=$(curl -s "https://api.github.com/repos/ThePieOfSauron/x-ui/releases" | jq -r '.[].tag_name' | grep -v 'beta\|alpha\|rc' | sed 's/^v//')
+    
+    if [[ -z "$all_releases" ]]; then
+        echo -e "${red}Failed to fetch release list from GitHub. Please check your network or try again later.${plain}"
+        before_show_menu
+        return
+    fi
+    
+    # Sort versions in descending order and get the latest 5
+    latest_versions=($(echo "$all_releases" | sort -rV | head -n 5))
+    
+    if [[ ${#latest_versions[@]} -eq 0 ]]; then
+        echo -e "${red}No versions found. Please check the repository.${plain}"
+        before_show_menu
+        return
+    fi
+    
+    echo -e "Current version: ${green}${version}${plain}"
+    echo -e "${yellow}Available versions:${plain}"
+    for i in "${!latest_versions[@]}"; do
+        echo -e "$((i+1)). ${green}${latest_versions[$i]}${plain}"
+    done
+    
+    echo ""
+    read -p "Select a version to update to (1-${#latest_versions[@]}, default 1): " version_number
+    
+    if [[ -z "$version_number" ]]; then
+        version_number=1
+    fi
+    
+    if ! [[ "$version_number" =~ ^[0-9]+$ ]] || [[ "$version_number" -lt 1 ]] || [[ "$version_number" -gt ${#latest_versions[@]} ]]; then
+        echo -e "${red}Invalid input. Using the latest version (1).${plain}"
+        version_number=1
+    fi
+    
+    selected_version="${latest_versions[$((version_number-1))]}"
+    echo -e "Selected version: ${green}${selected_version}${plain}"
+    
+    confirm "Update to v${selected_version}? [y/n]" "n"
+    if [[ $? == 0 ]]; then
+        install_x-ui "${selected_version}"
     fi
 }
 
