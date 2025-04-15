@@ -53,7 +53,29 @@ func (a *SettingController) updateSetting(c *gin.Context) {
 		jsonMsg(c, "修改设置", err)
 		return
 	}
+	
+	// Get current settings to check if language changed
+	oldAllSetting, err := a.settingService.GetAllSetting()
+	if err != nil {
+		jsonMsg(c, "获取旧设置", err)
+		return
+	}
+	
+	// Update settings
 	err = a.settingService.UpdateAllSetting(allSetting)
+	if err != nil {
+		jsonMsg(c, "修改设置", err)
+		return
+	}
+	
+	// If language changed, restart panel automatically
+	if oldAllSetting.Language != allSetting.Language {
+		go func() {
+			time.Sleep(time.Second)
+			a.panelService.RestartPanel(time.Second * 3)
+		}()
+	}
+	
 	jsonMsg(c, "修改设置", err)
 }
 

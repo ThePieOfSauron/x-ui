@@ -84,6 +84,15 @@
                                 <setting-list-item type="text" title="时区" desc="定时任务按照该时区的时间运行，重启面板生效" v-model="allSetting.timeLocation"></setting-list-item>
                             </a-list>
                         </a-tab-pane>
+                        <a-tab-pane key="6" tab="语言设置 / Language">
+                            <a-list item-layout="horizontal" style="background: white">
+                                <setting-list-item type="select" title="界面语言 / Interface Language" desc="切换界面语言，重启面板生效 / Change interface language, restart panel to apply" v-model="allSetting.language">
+                                    <a-select-option value="en_US">English</a-select-option>
+                                    <a-select-option value="zh_Hans">简体中文</a-select-option>
+                                    <a-select-option value="zh_Hant">繁體中文</a-select-option>
+                                </setting-list-item>
+                            </a-list>
+                        </a-tab-pane>
                     </a-tabs>
                 </a-space>
             </a-spin>

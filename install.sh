@@ -86,19 +86,75 @@ config_after_install() {
     echo -e "${yellow}出于安全考虑，安装/更新完成后需要强制修改端口与账户密码${plain}"
     read -p "确认是否继续?[y/n]": config_confirm
     if [[ x"${config_confirm}" == x"y" || x"${config_confirm}" == x"Y" ]]; then
-        read -p "请设置您的账户名:" config_account
-        echo -e "${yellow}您的账户名将设定为:${config_account}${plain}"
-        read -p "请设置您的账户密码:" config_password
-        echo -e "${yellow}您的账户密码将设定为:${config_password}${plain}"
-        read -p "请设置面板访问端口:" config_port
-        echo -e "${yellow}您的面板访问端口将设定为:${config_port}${plain}"
-        echo -e "${yellow}确认设定,设定中${plain}"
+        # Language selection
+        echo -e "${yellow}Please select your preferred language / 请选择您的首选语言:${plain}"
+        echo -e "1. English"
+        echo -e "2. 简体中文 (Simplified Chinese)"
+        echo -e "3. 繁體中文 (Traditional Chinese)"
+        read -p "Please enter your choice (default: 1): " config_language
+        case $config_language in
+            2)
+                config_lang="zh_Hans"
+                echo -e "${yellow}您的语言设置为: 简体中文${plain}"
+                ;;
+            3)
+                config_lang="zh_Hant"
+                echo -e "${yellow}您的语言设置为: 繁體中文${plain}"
+                ;;
+            *)
+                config_lang="en_US"
+                echo -e "${yellow}Your language setting: English${plain}"
+                ;;
+        esac
+        
+        if [[ x"${config_lang}" == x"en_US" ]]; then
+            read -p "Please set your account username:" config_account
+            echo -e "${yellow}Your account username will be set to: ${config_account}${plain}"
+            read -p "Please set your account password:" config_password
+            echo -e "${yellow}Your account password will be set to: ${config_password}${plain}"
+            read -p "Please set the panel access port:" config_port
+            echo -e "${yellow}Your panel access port will be set to: ${config_port}${plain}"
+            echo -e "${yellow}Confirming settings, setting in progress${plain}"
+        else
+            read -p "请设置您的账户名:" config_account
+            echo -e "${yellow}您的账户名将设定为:${config_account}${plain}"
+            read -p "请设置您的账户密码:" config_password
+            echo -e "${yellow}您的账户密码将设定为:${config_password}${plain}"
+            read -p "请设置面板访问端口:" config_port
+            echo -e "${yellow}您的面板访问端口将设定为:${config_port}${plain}"
+            echo -e "${yellow}确认设定,设定中${plain}"
+        fi
+        
         /usr/local/x-ui/x-ui setting -username ${config_account} -password ${config_password}
-        echo -e "${yellow}账户密码设定完成${plain}"
+        
+        if [[ x"${config_lang}" == x"en_US" ]]; then
+            echo -e "${yellow}Account and password set successfully${plain}"
+        else
+            echo -e "${yellow}账户密码设定完成${plain}"
+        fi
+        
         /usr/local/x-ui/x-ui setting -port ${config_port}
-        echo -e "${yellow}面板端口设定完成${plain}"
+        
+        if [[ x"${config_lang}" == x"en_US" ]]; then
+            echo -e "${yellow}Panel port set successfully${plain}"
+        else
+            echo -e "${yellow}面板端口设定完成${plain}"
+        fi
+        
+        # Set language
+        /usr/local/x-ui/x-ui setting -language ${config_lang}
+        
+        if [[ x"${config_lang}" == x"en_US" ]]; then
+            echo -e "${yellow}Language set successfully${plain}"
+        else
+            echo -e "${yellow}语言设置完成${plain}"
+        fi
     else
-        echo -e "${red}已取消,所有设置项均为默认设置,请及时修改${plain}"
+        if [[ x"${config_lang}" == x"en_US" ]]; then
+            echo -e "${red}Cancelled, all settings will be default, please change them promptly${plain}"
+        else
+            echo -e "${red}已取消,所有设置项均为默认设置,请及时修改${plain}"
+        fi
     fi
 }
 

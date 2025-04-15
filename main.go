@@ -204,6 +204,16 @@ func updateSetting(port int, username string, password string) {
 	}
 }
 
+func updateLanguage(language string) {
+	settingService := service.SettingService{}
+	err := settingService.SetLanguage(language)
+	if err != nil {
+		fmt.Println("set language failed:", err)
+	} else {
+		fmt.Println("set language success")
+	}
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		runWebServer()
@@ -227,6 +237,7 @@ func main() {
 	var tgbotchatid int
 	var enabletgbot bool
 	var tgbotRuntime string
+	var language string
 	var reset bool
 	var show bool
 	settingCmd.BoolVar(&reset, "reset", false, "reset all settings")
@@ -238,6 +249,7 @@ func main() {
 	settingCmd.StringVar(&tgbotRuntime, "tgbotRuntime", "", "set telegrame bot cron time")
 	settingCmd.IntVar(&tgbotchatid, "tgbotchatid", 0, "set telegrame bot chat id")
 	settingCmd.BoolVar(&enabletgbot, "enabletgbot", false, "enable telegram bot notify")
+	settingCmd.StringVar(&language, "language", "", "set panel language (en_US, zh_Hans, zh_Hant)")
 
 	oldUsage := flag.Usage
 	flag.Usage = func() {
@@ -289,6 +301,12 @@ func main() {
 		}
 		if (tgbottoken != "") || (tgbotchatid != 0) || (tgbotRuntime != "") {
 			updateTgbotSetting(tgbottoken, tgbotchatid, tgbotRuntime)
+		}
+		if language != "" {
+			updateLanguage(language)
+		}
+		if enabletgbot {
+			updateTgbotEnableSts(enabletgbot)
 		}
 	default:
 		fmt.Println("except 'run' or 'v2-ui' or 'setting' subcommands")

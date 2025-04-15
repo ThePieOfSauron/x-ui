@@ -33,6 +33,7 @@ var defaultValueMap = map[string]string{
 	"tgBotToken":         "",
 	"tgBotChatId":        "0",
 	"tgRunTime":          "",
+	"language":           "en_US",
 }
 
 type SettingService struct {
@@ -300,4 +301,12 @@ func (s *SettingService) UpdateAllSetting(allSetting *entity.AllSetting) error {
 		}
 	}
 	return common.Combine(errs...)
+}
+
+func (s *SettingService) GetLanguage() (string, error) {
+	return s.getString("language")
+}
+
+func (s *SettingService) SetLanguage(language string) error {
+	return s.setString("language", language)
 }

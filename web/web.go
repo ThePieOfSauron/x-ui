@@ -254,6 +254,12 @@ func (s *Server) initI18n(engine *gin.Engine) error {
 
 	var localizer *i18n.Localizer
 
+	// Get the language setting
+	defaultLang, err := s.settingService.GetLanguage()
+	if err != nil {
+		defaultLang = "en_US" // Fallback to English if error
+	}
+
 	engine.FuncMap["i18n"] = func(key string, params ...string) (string, error) {
 		names := findI18nParamNames(key)
 		if len(names) != len(params) {
@@ -271,6 +277,9 @@ func (s *Server) initI18n(engine *gin.Engine) error {
 
 	engine.Use(func(c *gin.Context) {
 		accept := c.GetHeader("Accept-Language")
+		if accept == "" {
+			accept = defaultLang
+		}
 		localizer = i18n.NewLocalizer(bundle, accept)
 		c.Set("localizer", localizer)
 		c.Next()
