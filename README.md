@@ -17,12 +17,12 @@ A multi-protocol, multi-user Xray panel
 # Installation & Upgrade
 
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/vaxilu/x-ui/master/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/ThePieOfSauron/x-ui/master/install.sh)
 ```
 
 ## Manual Installation & Upgrade
 
-1. First, download the latest compressed package from https://github.com/vaxilu/x-ui/releases, usually choose the `amd64` architecture
+1. First, download the latest compressed package from https://github.com/ThePieOfSauron/x-ui/releases, usually choose the `amd64` architecture
 2. Then upload this compressed package to the `/root/` directory of your server, and log in to the server using the `root` user
 
 > If your server CPU architecture is not `amd64`, replace `amd64` in the command with your architecture
