@@ -12,7 +12,21 @@ A multi-protocol, multi-user Xray panel
 - Customizable Xray configuration templates
 - Support for HTTPS panel access (bring your own domain + SSL certificate)
 - Support for one-click SSL certificate application and automatic renewal
+- Multilingual support (English, Simplified Chinese, Traditional Chinese)
 - More advanced configuration options available in the panel
+
+# Language Settings
+
+X-UI supports multiple languages:
+- English (default)
+- Simplified Chinese
+- Traditional Chinese
+
+You can change the language in one of the following ways:
+1. During installation, select your preferred language
+2. Use the command line: `x-ui setting -language [language_code]`
+   - Available language codes: `en_US`, `zh_Hans`, `zh_Hant`
+3. Switch language via the CLI menu: `x-ui`, then select "Switch language"
 
 # Installation & Upgrade
 

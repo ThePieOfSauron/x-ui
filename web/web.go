@@ -97,10 +97,17 @@ type Server struct {
 
 func NewServer() *Server {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Server{
+	server := &Server{
 		ctx:    ctx,
 		cancel: cancel,
 	}
+
+	// Initialize services
+	server.xrayService = service.XrayService{}
+	server.settingService = service.SettingService{}
+	server.inboundService = service.InboundService{}
+
+	return server
 }
 
 func (s *Server) getHtmlFiles() ([]string, error) {
@@ -211,7 +218,7 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 }
 
 func (s *Server) initI18n(engine *gin.Engine) error {
-	bundle := i18n.NewBundle(language.SimplifiedChinese)
+	bundle := i18n.NewBundle(language.English)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
 	err := fs.WalkDir(i18nFS, "translation", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -271,7 +278,15 @@ func (s *Server) initI18n(engine *gin.Engine) error {
 
 	engine.Use(func(c *gin.Context) {
 		accept := c.GetHeader("Accept-Language")
-		localizer = i18n.NewLocalizer(bundle, accept)
+
+		// Try to get language from settings first, fall back to browser language
+		language, err := s.settingService.GetLanguage()
+		if err == nil && language != "" {
+			localizer = i18n.NewLocalizer(bundle, language, accept)
+		} else {
+			localizer = i18n.NewLocalizer(bundle, accept)
+		}
+
 		c.Set("localizer", localizer)
 		c.Next()
 	})
