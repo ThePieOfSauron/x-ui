@@ -674,6 +674,10 @@ uninstall_x-ui() {
 install_x-ui() {
     systemctl stop x-ui 2>/dev/null
     cd /usr/local/
+    if [ $? -ne 0 ]; then
+        echo -e "${red}Error: Failed to change directory to /usr/local/${plain}"
+        exit 1
+    fi
 
     if [ $# == 0 ]; then
         # Get available versions and let user choose
@@ -688,31 +692,117 @@ install_x-ui() {
     fi
 
     echo -e "Starting installation of x-ui ${version_tag}"
+    # Download
     wget -N --no-check-certificate -O /usr/local/x-ui-linux-${arch}.tar.gz https://github.com/ThePieOfSauron/x-ui/releases/download/${version_tag}/x-ui-linux-${arch}-${selected_version}.tar.gz
-    
     if [[ $? -ne 0 ]]; then
-        echo -e "${red}Failed to download x-ui ${version_tag}. Please ensure this version exists.${plain}"
+        echo -e "${red}Error: Failed to download x-ui ${version_tag}. Please check version and network.${plain}"
+        exit 1
+    fi
+    if [ ! -s /usr/local/x-ui-linux-${arch}.tar.gz ]; then
+        echo -e "${red}Error: Downloaded file is empty. Installation aborted.${plain}"
+        rm -f /usr/local/x-ui-linux-${arch}.tar.gz
         exit 1
     fi
 
+    # Remove old directory if exists
     if [[ -e /usr/local/x-ui/ ]]; then
-        rm /usr/local/x-ui/ -rf
+        rm -rf /usr/local/x-ui/
+        if [[ $? -ne 0 ]]; then
+            echo -e "${red}Error: Failed to remove old x-ui directory.${plain}"
+            exit 1
+        fi
     fi
 
+    # Extract
     tar zxvf x-ui-linux-${arch}.tar.gz
-    rm x-ui-linux-${arch}.tar.gz -f
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Error: Failed to extract x-ui archive.${plain}"
+        rm -f /usr/local/x-ui-linux-${arch}.tar.gz
+        exit 1
+    fi
+    rm -f x-ui-linux-${arch}.tar.gz
+    
+    # Change into the extracted directory
     cd x-ui
+    if [[ $? -ne 0 || ! -f ./x-ui ]]; then
+        echo -e "${red}Error: Failed to change directory to x-ui or main binary not found within.${plain}"
+        cd .. # Go back to /usr/local
+        rm -rf /usr/local/x-ui # Clean up extracted folder
+        exit 1
+    fi
+    
+    # Set permissions
     chmod +x x-ui bin/xray-linux-${arch}
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Error: Failed to set executable permissions on binaries.${plain}"
+        exit 1
+    fi
+    
+    # Copy service file
     cp -f x-ui.service /etc/systemd/system/
+    if [[ $? -ne 0 || ! -f /etc/systemd/system/x-ui.service ]]; then
+        echo -e "${red}Error: Failed to copy service file to /etc/systemd/system/.${plain}"
+        exit 1
+    fi
+    
+    # Download alias script
+    cd .. # Go back to /usr/local/ to avoid issues with wget/curl path
     wget --no-check-certificate -O /usr/bin/x-ui https://raw.githubusercontent.com/ThePieOfSauron/x-ui/main/x-ui.sh
-    chmod +x /usr/local/x-ui/x-ui.sh
-    chmod +x /usr/bin/x-ui
+    if [[ $? -ne 0 || ! -f /usr/bin/x-ui ]]; then
+        echo -e "${red}Error: Failed to download x-ui command alias script.${plain}" 
+        # Attempt to copy from local if it exists
+        if [ -f /usr/local/x-ui/x-ui.sh ]; then
+             cp /usr/local/x-ui/x-ui.sh /usr/bin/x-ui
+             echo -e "${yellow}Copied x-ui.sh from local installation directory instead.${plain}"
+        else
+             echo -e "${red}Local x-ui.sh not found either. Command alias might not work.${plain}"        
+        fi
+    fi
+
+    # Set alias script permissions
+    if [ -f /usr/bin/x-ui ]; then
+        chmod +x /usr/bin/x-ui
+        if [[ $? -ne 0 ]]; then
+            echo -e "${red}Error: Failed to set executable permission on /usr/bin/x-ui.${plain}"
+        fi
+    fi
+    
+    # Check if x-ui binary exists before configuration
+    if [ ! -x /usr/local/x-ui/x-ui ]; then
+        echo -e "${red}Critical Error: /usr/local/x-ui/x-ui binary not found or not executable after installation steps!${plain}"
+        echo -e "${yellow}Installation cannot proceed. Exiting.${plain}"
+        exit 1
+    fi
+    
+    # Run configuration
     config_after_install
 
+    # Reload systemd and manage service
     systemctl daemon-reload
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Error: Failed to reload systemd daemon.${plain}"
+        # Continue, but warn user
+    fi
+    
     systemctl enable x-ui
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Error: Failed to enable x-ui service for auto-start.${plain}"
+        # Continue, but warn user
+    fi
+    
     systemctl start x-ui
-    echo -e "${green}x-ui ${version_tag}${plain} installation complete. The panel has been started."
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Error: Failed to start x-ui service.${plain}"
+        echo -e "${yellow}Please check the service status manually using 'systemctl status x-ui' or 'journalctl -u x-ui'.${plain}"
+        # Don't exit, let user troubleshoot
+    fi
+
+    echo -e "${green}x-ui ${version_tag}${plain} installation finished.${plain}"
+    if systemctl is-active --quiet x-ui; then
+        echo -e "${green}Panel is running.${plain}"
+    else
+        echo -e "${red}Panel failed to start. Please check logs or run troubleshoot.${plain}"
+    fi
     echo -e ""
     echo -e "x-ui management script usage: "
     echo -e "----------------------------------------------"
