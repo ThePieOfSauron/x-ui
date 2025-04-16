@@ -48,7 +48,6 @@ type wrapAssetsFS struct {
 func (f *wrapAssetsFS) Open(name string) (fs.File, error) {
 	file, err := f.FS.Open("assets/" + name)
 	if err != nil {
-		logger.Error("Failed to open asset:", name, "Error:", err)
 		return nil, err
 	}
 	return &wrapAssetsFile{
@@ -127,17 +126,13 @@ func (s *Server) getHtmlTemplate(funcMap template.FuncMap) (*template.Template, 
 	t := template.New("").Funcs(funcMap)
 	err := fs.WalkDir(htmlFS, "html", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			logger.Error("Error walking HTML directory:", err)
 			return err
 		}
 
 		if d.IsDir() {
-			pattern := path + "/*.html"
-			logger.Info("Loading HTML templates from pattern:", pattern)
-			newT, err := t.ParseFS(htmlFS, pattern)
+			newT, err := t.ParseFS(htmlFS, path+"/*.html")
 			if err != nil {
-				// Don't fail completely, just log the error
-				logger.Warning("Error parsing template:", pattern, err)
+				// ignore
 				return nil
 			}
 			t = newT
@@ -163,16 +158,13 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 
 	secret, err := s.settingService.GetSecret()
 	if err != nil {
-		logger.Error("Failed to get secret:", err)
 		return nil, err
 	}
 
 	basePath, err := s.settingService.GetBasePath()
 	if err != nil {
-		logger.Error("Failed to get base path:", err)
 		return nil, err
 	}
-	logger.Info("Using base path:", basePath)
 	assetsBasePath := basePath + "assets/"
 
 	store := cookie.NewStore(secret)
@@ -262,12 +254,6 @@ func (s *Server) initI18n(engine *gin.Engine) error {
 
 	var localizer *i18n.Localizer
 
-	// Get the language setting
-	defaultLang, err := s.settingService.GetLanguage()
-	if err != nil {
-		defaultLang = "en_US" // Fallback to English if error
-	}
-
 	engine.FuncMap["i18n"] = func(key string, params ...string) (string, error) {
 		names := findI18nParamNames(key)
 		if len(names) != len(params) {
@@ -285,9 +271,6 @@ func (s *Server) initI18n(engine *gin.Engine) error {
 
 	engine.Use(func(c *gin.Context) {
 		accept := c.GetHeader("Accept-Language")
-		if accept == "" {
-			accept = defaultLang
-		}
 		localizer = i18n.NewLocalizer(bundle, accept)
 		c.Set("localizer", localizer)
 		c.Next()
@@ -337,7 +320,6 @@ func (s *Server) Start() (err error) {
 	defer func() {
 		if err != nil {
 			s.Stop()
-			logger.Error("Server failed to start:", err)
 		}
 	}()
 
@@ -378,7 +360,6 @@ func (s *Server) Start() (err error) {
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
 			listener.Close()
-			logger.Error("Failed to load TLS certificates:", err)
 			return err
 		}
 		c := &tls.Config{

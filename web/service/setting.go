@@ -304,7 +304,12 @@ func (s *SettingService) UpdateAllSetting(allSetting *entity.AllSetting) error {
 }
 
 func (s *SettingService) GetLanguage() (string, error) {
-	return s.getString("language")
+	language, err := s.getString("language")
+	if err != nil || language == "" {
+		// Default to English if not set
+		return "en_US", nil
+	}
+	return language, nil
 }
 
 func (s *SettingService) SetLanguage(language string) error {

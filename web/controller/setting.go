@@ -40,7 +40,7 @@ func (a *SettingController) initRouter(g *gin.RouterGroup) {
 func (a *SettingController) getAllSetting(c *gin.Context) {
 	allSetting, err := a.settingService.GetAllSetting()
 	if err != nil {
-		jsonMsg(c, "get_settings", err)
+		jsonMsg(c, "获取设置", err)
 		return
 	}
 	jsonObj(c, allSetting, nil)
@@ -50,67 +50,39 @@ func (a *SettingController) updateSetting(c *gin.Context) {
 	allSetting := &entity.AllSetting{}
 	err := c.ShouldBind(allSetting)
 	if err != nil {
-		jsonMsg(c, "update_settings", err)
+		jsonMsg(c, "修改设置", err)
 		return
 	}
-	
-	// Get current settings to check if language changed
-	oldAllSetting, err := a.settingService.GetAllSetting()
-	if err != nil {
-		jsonMsg(c, "get_old_settings", err)
-		return
-	}
-	
-	// Update settings
 	err = a.settingService.UpdateAllSetting(allSetting)
-	if err != nil {
-		jsonMsg(c, "update_settings", err)
-		return
-	}
-	
-	// If language changed, restart panel automatically
-	if oldAllSetting.Language != allSetting.Language {
-		go func() {
-			time.Sleep(time.Second)
-			a.panelService.RestartPanel(time.Second * 3)
-		}()
-	}
-	
-	jsonMsg(c, "update_settings", err)
+	jsonMsg(c, "修改设置", err)
 }
 
 func (a *SettingController) updateUser(c *gin.Context) {
 	form := &updateUserForm{}
 	err := c.ShouldBind(form)
 	if err != nil {
-		jsonMsg(c, "update_user", err)
+		jsonMsg(c, "修改用户", err)
 		return
 	}
 	user := session.GetLoginUser(c)
 	if user.Username != form.OldUsername || user.Password != form.OldPassword {
-		jsonMsg(c, "update_user", errors.New("incorrect_old_username_password"))
+		jsonMsg(c, "修改用户", errors.New("原用户名或原密码错误"))
 		return
 	}
 	if form.NewUsername == "" || form.NewPassword == "" {
-		jsonMsg(c, "update_user", errors.New("new_username_password_empty"))
+		jsonMsg(c, "修改用户", errors.New("新用户名和新密码不能为空"))
 		return
 	}
 	err = a.userService.UpdateUser(user.Id, form.NewUsername, form.NewPassword)
-	if err != nil {
-		jsonMsg(c, "update_user", err)
-		return
+	if err == nil {
+		user.Username = form.NewUsername
+		user.Password = form.NewPassword
+		session.SetLoginUser(c, user)
 	}
-	user.Username = form.NewUsername
-	user.Password = form.NewPassword
-	session.SetLoginUser(c, user)
-	jsonMsg(c, "update_user", err)
+	jsonMsg(c, "修改用户", err)
 }
 
 func (a *SettingController) restartPanel(c *gin.Context) {
 	err := a.panelService.RestartPanel(time.Second * 3)
-	if err != nil {
-		jsonMsg(c, "restart_panel", err)
-		return
-	}
-	jsonMsg(c, "restart_panel", err)
+	jsonMsg(c, "重启面板", err)
 }
